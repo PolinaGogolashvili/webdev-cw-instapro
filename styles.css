@@ -76,6 +76,8 @@
   height: 100%;
   max-width: 500px;
   object-fit: cover;
+  border: 5px solid #030c52;
+  box-sizing: border-box;
 }
 
 .post-likes {
@@ -176,7 +178,7 @@
   text-align: center;
 }
 
-.file-upload-image-conrainer {
+.file-upload-image-container {
   display: flex;
   align-items: center;
 }

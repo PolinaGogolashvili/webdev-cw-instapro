@@ -1,10 +1,10 @@
 // Замени на свой, чтобы получить независимый от других набор данных.
 // "боевая" версия инстапро лежит в ключе prod
-const personalKey = "prod";
+const personalKey = "polina";
 const baseHost = "https://webdev-hw-api.vercel.app";
 const postsHost = `${baseHost}/api/v1/${personalKey}/instapro`;
 
-export function getPosts({ token }) {
+export async function getPosts({ token }) {
   return fetch(postsHost, {
     method: "GET",
     headers: {
@@ -15,15 +15,26 @@ export function getPosts({ token }) {
       if (response.status === 401) {
         throw new Error("Нет авторизации");
       }
-
       return response.json();
     })
     .then((data) => {
-      return data.posts;
+      return data.posts.map((post) => {
+        return {
+          name: post.user?.name,
+          description: post.description,
+          time: post.createdAt,
+          postImg: post.imageUrl,
+          userImg: post.user?.imageUrl,
+          id: post.user.id,
+          idPost: post.id,
+          isLiked: post.isLiked,
+          likes: post.likes.length,
+          whoseLike: post.likes[0]?.name,
+        };
+      });
     });
 }
 
-// https://github.com/GlebkaF/webdev-hw-api/blob/main/pages/api/user/README.md#%D0%B0%D0%B2%D1%82%D0%BE%D1%80%D0%B8%D0%B7%D0%BE%D0%B2%D0%B0%D1%82%D1%8C%D1%81%D1%8F
 export function registerUser({ login, password, name, imageUrl }) {
   return fetch(baseHost + "/api/user", {
     method: "POST",
@@ -68,3 +79,80 @@ export function uploadImage({ file }) {
     return response.json();
   });
 }
+
+export function addPost({ token, description, imageUrl }) {
+  return fetch(postsHost, {
+    method: "POST",
+    headers: {
+      Authorization: token,
+    },
+    body: JSON.stringify({
+      description,
+      imageUrl,
+    }),
+  }).then((response) => {
+    if(response.status === 400) {
+      throw new Error ('Прикрепите картинку и опишите ее')
+    } else if(response.status === 500) {
+      throw new Error ('У вас пропал интернет')
+    }
+    return response.json();
+  })
+};
+
+export function getUserPosts(userId, token) {
+  return fetch(postsHost + "/user-posts/" + userId, {
+    method: "GET",
+    headers: {
+      Authorization: token,
+    },
+  })
+    .then((response) => {
+      if (response.status === 401) {
+        throw new Error("Нет авторизации");
+      }
+
+      return response.json();
+    })
+    .then((data) => {
+      return data.posts.map((post) => {
+        return {
+          name: post?.user?.name,
+          description: post.description,
+          time: post.createdAt,
+          postImg: post.imageUrl,
+          userImg: post?.user?.imageUrl,
+          id: post.user?.id,
+          idPost: post.idPost,
+          isLiked: post.isLiked,
+          likes: post.likes.length,
+          whoseLike: post?.likes[0]?.name,
+        }
+      });
+    });
+  };
+
+
+  export function getLiked({ token, idPost }) {
+    return fetch(postsHost + "/" + idPost + "/like", {
+      method: "POST",
+      headers: {
+        Authorization: token,
+      },
+      body: JSON.stringify({
+        idPost,
+      }),
+    })
+  };
+
+  export function getDisliked({ token, idPost }) {
+    return fetch(postsHost + "/" + idPost + "/dislike", {
+      method: "POST",
+      headers: {
+        Authorization: token,
+      },
+      body: JSON.stringify({
+        idPost,
+      }),
+     })
+  }

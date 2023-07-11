@@ -1,4 +1,4 @@
-import { getPosts } from "./api.js";
+import { getPosts, addPost, getUserPosts, getLiked, getDisliked } from "./api.js";
 import { renderAddPostPageComponent } from "./components/add-post-page-component.js";
 import { renderAuthPageComponent } from "./components/auth-page-component.js";
 import {
@@ -15,6 +15,8 @@ import {
   removeUserFromLocalStorage,
   saveUserToLocalStorage,
 } from "./helpers.js";
+
+import { renderUserPageComponent } from "./components/user-posts-component.js";
 
 export let user = getUserFromLocalStorage();
 export let page = null;
@@ -34,6 +36,7 @@ export const logout = () => {
 /**
  * Включает страницу приложения
  */
+
 export const goToPage = (newPage, data) => {
   if (
     [
@@ -43,9 +46,10 @@ export const goToPage = (newPage, data) => {
       USER_POSTS_PAGE,
       LOADING_PAGE,
     ].includes(newPage)
+          // Если пользователь не авторизован, то отправляем его на авторизацию перед добавлением поста
+
   ) {
     if (newPage === ADD_POSTS_PAGE) {
-      // Если пользователь не авторизован, то отправляем его на авторизацию перед добавлением поста
       page = user ? ADD_POSTS_PAGE : AUTH_PAGE;
       return renderApp();
     }
@@ -54,7 +58,7 @@ export const goToPage = (newPage, data) => {
       page = LOADING_PAGE;
       renderApp();
 
-      return getPosts({ token: getToken() })
+      return getPosts({ token: getToken(),})
         .then((newPosts) => {
           page = POSTS_PAGE;
           posts = newPosts;
@@ -67,11 +71,14 @@ export const goToPage = (newPage, data) => {
     }
 
     if (newPage === USER_POSTS_PAGE) {
-      // TODO: реализовать получение постов юзера из API
-      console.log("Открываю страницу пользователя: ", data.userId);
-      page = USER_POSTS_PAGE;
-      posts = [];
-      return renderApp();
+      page = LOADING_PAGE;
+      renderApp();
+      let userId = data.userId;
+      return getUserPosts(userId).then((newPosts) => {
+        page = USER_POSTS_PAGE;
+        posts = newPosts;
+        renderApp();
+      });
     }
 
     page = newPage;
@@ -80,6 +87,7 @@ export const goToPage = (newPage, data) => {
     return;
   }
 
+  likeEventListener();
   throw new Error("страницы не существует");
 };
 
@@ -110,9 +118,17 @@ const renderApp = () => {
     return renderAddPostPageComponent({
       appEl,
       onAddPostClick({ description, imageUrl }) {
-        // TODO: реализовать добавление поста в API
-        console.log("Добавляю пост...", { description, imageUrl });
-        goToPage(POSTS_PAGE);
+        addPost({
+          description: description
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;"),
+          imageUrl,
+          token: getToken(),
+        }).then(() => {
+          goToPage(POSTS_PAGE);
+        });
       },
     });
   }
@@ -124,10 +140,68 @@ const renderApp = () => {
   }
 
   if (page === USER_POSTS_PAGE) {
-    // TODO: реализовать страницу фотографию пользвателя
-    appEl.innerHTML = "Здесь будет страница фотографий пользователя";
-    return;
+    return renderUserPageComponent({
+      appEl,
+    });
+  }
+  likeEventListener();
+};
+
+export const likeEventListener = () => {
+  const likeButtonElements = document.querySelectorAll(".like-button");
+  for (const likeButtonElement of likeButtonElements) {
+    const index = +(likeButtonElement.dataset.index);
+
+    likeButtonElement.addEventListener("click", () => {
+      let userId = posts[index].id;
+      let idPost = posts[index].idPost;
+      if (!user) {
+        alert("Чтобы поставить лайк, авторизуйтесь")
+        return;
+    }
+
+    if (posts[index].isLiked === true) {
+      getDisliked({idPost, token: getToken()})
+        .then(() => {
+          if (page === POSTS_PAGE) {
+            return getPosts({ token: getToken() })
+            .then((newPosts) => {
+              page = POSTS_PAGE;
+              posts = newPosts;
+              renderApp();
+            });
+          } else {
+            return getUserPosts({userId, token: getToken()})
+            .then((newPosts) => {
+                page = USER_POSTS_PAGE;
+                posts = newPosts;
+                renderApp();
+              });
+          }
+        });
+    } else {
+     getLiked({ idPost, token: getToken() })
+      .then(() => {
+        if (page === POSTS_PAGE) {
+          return getPosts({token: getToken()})
+          .then((newPosts) => {
+            page = POSTS_PAGE;
+            posts = newPosts;
+            renderApp();
+          });
+        } else {
+          return getUserPosts({userId, token: getToken()})
+          .then((newPosts) => {
+              page = USER_POSTS_PAGE;
+              posts = newPosts;
+              renderApp();
+              });
+          }
+        });
+      }
+    });
   }
 };
 
 goToPage(POSTS_PAGE);
+likeEventListener();
